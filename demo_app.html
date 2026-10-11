@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-900 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demostrador Interactivo - Sistema de Gestión Escolar Multi-Institución (Laravel 13)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+    </style>
+</head>
+<body class="h-full font-sans antialiased" x-data="schoolSystem()">
+    <div class="min-h-screen flex flex-col md:flex-row">
+        <!-- Sidebar Navigation -->
+        <aside class="w-full md:w-64 glass-card border-r border-slate-800 flex-shrink-0 flex flex-col">
+            <div class="p-5 border-b border-slate-800/60 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center font-black text-xl text-white shadow-lg shadow-indigo-500/30">
+                        E
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-base text-white leading-tight">EduSystem</h1>
+                        <span class="text-xs text-indigo-400 font-semibold">Laravel 13 Engine</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Nav Links -->
+            <nav class="p-4 space-y-1.5 flex-1">
+                <button @click="currentTab = 'dashboard'" :class="currentTab === 'dashboard' ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+                    Dashboard
+                </button>
+
+                <button @click="currentTab = 'institutions'" :class="currentTab === 'institutions' ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5m0 0h4m-4 0a2 2 0 01-2-2V7a2 2 0 012-2h4a2 2 0 012 2v12a2 2 0 01-2 2m-6 0h6"></path></svg>
+                    Instituciones
+                </button>
+
+                <button @click="currentTab = 'students'" :class="currentTab === 'students' ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    Alumnos
+                </button>
+
+                <button @click="currentTab = 'attendance'" :class="currentTab === 'attendance' ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                    Asistencias
+                </button>
+
+                <button @click="currentTab = 'grades'" :class="currentTab === 'grades' ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 font-semibold' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    Notas y Evaluaciones
+                </button>
+            </nav>
+
+            <div class="p-4 border-t border-slate-800/60">
+                <div class="p-3 rounded-xl bg-slate-800/40 border border-slate-700/40 flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center font-bold text-slate-900 text-xs">
+                        CM
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold text-white">Prof. Carlos Mendoza</p>
+                        <p class="text-[11px] text-slate-400">Docente Multinstitución</p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <div class="flex-1 flex flex-col min-w-0">
+            <!-- Navbar Switcher -->
+            <header class="h-16 glass-card border-b border-slate-800 px-6 flex items-center justify-between sticky top-0 z-30">
+                <div class="flex items-center gap-3">
+                    <span class="text-xs uppercase tracking-wider font-bold text-slate-400">Institución Activa:</span>
+                    
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-sm font-semibold text-white">
+                            <span class="w-2.5 h-2.5 rounded-full" :style="'background-color:' + activeInstitution.color"></span>
+                            <span x-text="activeInstitution.name"></span>
+                            <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+
+                        <div x-show="open" @click.outside="open = false" class="absolute left-0 mt-2 w-72 glass-card rounded-xl shadow-2xl border border-slate-700 py-2 z-50">
+                            <div class="px-4 py-1.5 text-[11px] font-bold uppercase text-slate-400 border-b border-slate-800">Seleccionar Institución</div>
+                            <template x-for="inst in institutions" :key="inst.id">
+                                <button @click="activeInstId = inst.id; open = false; toast('Cambiado a ' + inst.name)" class="w-full text-left px-4 py-2 text-sm flex items-center justify-between hover:bg-slate-800">
+                                    <div class="flex items-center gap-2">
+                                        <span class="w-2.5 h-2.5 rounded-full" :style="'background-color:' + inst.color"></span>
+                                        <span x-text="inst.name" class="text-slate-200"></span>
+                                    </div>
+                                    <span x-show="activeInstId === inst.id" class="text-xs bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded font-bold">Activa</span>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    Año Lectivo 2026
+                </span>
+            </header>
+
+            <!-- Toast alert -->
+            <div x-show="toastMsg" class="m-6 mb-0 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm flex items-center gap-3">
+                <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                <span x-text="toastMsg"></span>
+            </div>
+
+            <!-- Page Views -->
+            <main class="flex-1 p-6 space-y-6">
+                <!-- Tab: Dashboard -->
+                <div x-show="currentTab === 'dashboard'" class="space-y-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h1 class="text-2xl font-black text-white">Panel de Control</h1>
+                            <p class="text-sm text-slate-400">Métricas de <strong x-text="activeInstitution.name" class="text-indigo-400"></strong></p>
+                        </div>
+                        <button @click="currentTab = 'attendance'" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm shadow-lg shadow-indigo-600/30">Tomar Asistencia Hoy</button>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                        <div class="glass-card p-5 rounded-2xl border border-slate-800">
+                            <span class="text-xs font-bold uppercase text-slate-400">Total Alumnos</span>
+                            <div class="mt-2 text-3xl font-extrabold text-white" x-text="activeStudents.length"></div>
+                        </div>
+
+                        <div class="glass-card p-5 rounded-2xl border border-slate-800">
+                            <span class="text-xs font-bold uppercase text-slate-400">% Asistencia Promedio</span>
+                            <div class="mt-2 text-3xl font-extrabold text-emerald-400">96.4%</div>
+                        </div>
+
+                        <div class="glass-card p-5 rounded-2xl border border-slate-800">
+                            <span class="text-xs font-bold uppercase text-slate-400">Promedio General</span>
+                            <div class="mt-2 text-3xl font-extrabold text-indigo-300">6.3</div>
+                        </div>
+
+                        <div class="glass-card p-5 rounded-2xl border border-slate-800">
+                            <span class="text-xs font-bold uppercase text-slate-400">Materias Dictadas</span>
+                            <div class="mt-2 text-3xl font-extrabold text-amber-400" x-text="activeInstitution.code === 'CSA-001' ? 3 : 2"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Institutions -->
+                <div x-show="currentTab === 'institutions'" class="space-y-6">
+                    <h1 class="text-2xl font-black text-white">Gestión Multi-Institución</h1>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <template x-for="inst in institutions" :key="inst.id">
+                            <div class="glass-card p-6 rounded-2xl border border-slate-800 space-y-4">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-mono text-xs text-slate-400 font-bold" x-text="inst.code"></span>
+                                    <span x-show="activeInstId === inst.id" class="px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-500/20 text-indigo-300">Activa</span>
+                                </div>
+                                <h2 class="text-xl font-bold text-white" x-text="inst.name"></h2>
+                                <button @click="activeInstId = inst.id; toast('Institución activa cambiada')" class="w-full py-2 bg-indigo-600 hover:bg-indigo-500 font-bold text-xs rounded-xl text-white">Seleccionar Institución</button>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Tab: Students -->
+                <div x-show="currentTab === 'students'" class="space-y-6">
+                    <h1 class="text-2xl font-black text-white">Directorio de Alumnos</h1>
+                    <div class="glass-card rounded-2xl border border-slate-800 overflow-hidden">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-800/40 text-xs font-bold uppercase text-slate-400 border-b border-slate-800">
+                                <tr>
+                                    <th class="p-4">Estudiante</th>
+                                    <th class="p-4">RUT/DNI</th>
+                                    <th class="p-4">Curso</th>
+                                    <th class="p-4 text-center">Asistencia</th>
+                                    <th class="p-4 text-center">Promedio</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-800/60">
+                                <template x-for="st in activeStudents" :key="st.id">
+                                    <tr>
+                                        <td class="p-4 font-bold text-white" x-text="st.name"></td>
+                                        <td class="p-4 font-mono text-xs text-slate-400" x-text="st.rut"></td>
+                                        <td class="p-4 text-slate-300" x-text="st.course"></td>
+                                        <td class="p-4 text-center"><span class="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300" x-text="st.att + '%'"></span></td>
+                                        <td class="p-4 text-center font-bold text-indigo-300" x-text="st.grade"></td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Tab: Attendance -->
+                <div x-show="currentTab === 'attendance'" class="space-y-6">
+                    <h1 class="text-2xl font-black text-white">Registro de Asistencia Diaria</h1>
+                    <div class="glass-card p-6 rounded-2xl border border-slate-800 space-y-4">
+                        <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                            <h2 class="text-lg font-bold text-white">Clase de Matemáticas — 1º Medio A</h2>
+                            <button @click="toast('Asistencias guardadas exitosamente')" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 font-bold text-xs text-white rounded-xl shadow-lg">Guardar Asistencia</button>
+                        </div>
+                        <div class="space-y-3">
+                            <template x-for="st in activeStudents" :key="st.id">
+                                <div class="flex items-center justify-between p-3 rounded-xl bg-slate-800/40 border border-slate-700/40">
+                                    <span class="font-bold text-white text-sm" x-text="st.name"></span>
+                                    <div class="flex gap-2">
+                                        <button @click="st.status = 'P'" :class="st.status === 'P' ? 'bg-emerald-500 text-slate-900 font-bold' : 'bg-slate-800 text-slate-400'" class="px-3 py-1 rounded-lg text-xs">Presente</button>
+                                        <button @click="st.status = 'A'" :class="st.status === 'A' ? 'bg-rose-500 text-white font-bold' : 'bg-slate-800 text-slate-400'" class="px-3 py-1 rounded-lg text-xs">Ausente</button>
+                                        <button @click="st.status = 'AT'" :class="st.status === 'AT' ? 'bg-amber-500 text-slate-900 font-bold' : 'bg-slate-800 text-slate-400'" class="px-3 py-1 rounded-lg text-xs">Atraso</button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Grades -->
+                <div x-show="currentTab === 'grades'" class="space-y-6">
+                    <h1 class="text-2xl font-black text-white">Gestión de Calificaciones (Escala 1.0 - 7.0)</h1>
+                    <div class="glass-card p-6 rounded-2xl border border-slate-800 space-y-4">
+                        <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                            <h2 class="text-lg font-bold text-white">Matemáticas I — Prueba 1 (30%)</h2>
+                            <button @click="toast('Notas guardadas correctamente')" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 font-bold text-xs text-white rounded-xl">Guardar Notas</button>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <template x-for="st in activeStudents" :key="st.id">
+                                <div class="flex items-center justify-between p-3 rounded-xl bg-slate-800/40 border border-slate-700/40">
+                                    <span class="font-bold text-white text-sm" x-text="st.name"></span>
+                                    <input type="number" step="0.1" min="1.0" max="7.0" x-model="st.grade" class="w-16 text-center font-bold bg-slate-900 border border-slate-700 rounded-lg p-1 text-white">
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        function schoolSystem() {
+            return {
+                currentTab: 'dashboard',
+                activeInstId: 1,
+                toastMsg: '',
+                institutions: [
+                    { id: 1, name: 'Colegio San Agustín', code: 'CSA-001', color: '#4f46e5' },
+                    { id: 2, name: 'Liceo Bicentenario Santa María', code: 'LBSM-002', color: '#059669' }
+                ],
+                studentsCSA: [
+                    { id: 1, name: 'Sofía Valenzuela', rut: '21.450.981-2', course: '1º Medio A', att: 98, grade: 6.8, status: 'P' },
+                    { id: 2, name: 'Mateo Fernández', rut: '21.782.114-K', course: '1º Medio A', att: 95, grade: 6.2, status: 'P' },
+                    { id: 3, name: 'Camila Rojas', rut: '21.903.441-5', course: '1º Medio A', att: 92, grade: 5.8, status: 'P' },
+                    { id: 4, name: 'Lucas Silva', rut: '22.012.339-8', course: '1º Medio A', att: 88, grade: 4.5, status: 'AT' }
+                ],
+                studentsLBSM: [
+                    { id: 5, name: 'Joaquín Navarro', rut: '20.891.223-1', course: '2º Medio C', att: 100, grade: 7.0, status: 'P' },
+                    { id: 6, name: 'Isabella Castro', rut: '20.944.551-7', course: '2º Medio C', att: 96, grade: 6.5, status: 'P' }
+                ],
+                get activeInstitution() {
+                    return this.institutions.find(i => i.id === this.activeInstId) || this.institutions[0];
+                },
+                get activeStudents() {
+                    return this.activeInstId === 1 ? this.studentsCSA : this.studentsLBSM;
+                },
+                toast(msg) {
+                    this.toastMsg = msg;
+                    setTimeout(() => { this.toastMsg = ''; }, 3000);
+                }
+            };
+        }
+    </script>
+</body>
+</html>
