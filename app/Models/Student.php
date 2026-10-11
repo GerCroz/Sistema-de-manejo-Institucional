@@ -54,8 +54,11 @@ class Student extends Model
     public function getAttendancePercentageAttribute(): float
     {
         $total = $this->attendances()->count();
-        if ($total === 0) return 100.0;
+        if ($total === 0) {
+            return 100.0;
+        }
         $present = $this->attendances()->whereIn('status', ['present', 'justified', 'late'])->count();
+
         return round(($present / $total) * 100, 1);
     }
 
@@ -63,7 +66,10 @@ class Student extends Model
     public function getAverageGradeAttribute(): float
     {
         $grades = $this->grades;
-        if ($grades->isEmpty()) return 0.0;
+        if ($grades->isEmpty()) {
+            return 0.0;
+        }
+
         return round($grades->avg('score'), 1);
     }
 }

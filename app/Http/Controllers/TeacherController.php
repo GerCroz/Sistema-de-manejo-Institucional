@@ -41,8 +41,8 @@ class TeacherController extends Controller
         $teacher = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
-            'title' => $validated['title'] ?: 'Docente Titular',
-            'password' => Hash::make($validated['password'] ?: 'password123'),
+            'title' => ($validated['title'] ?? null) ?: 'Docente Titular',
+            'password' => Hash::make(($validated['password'] ?? null) ?: 'password123'),
         ]);
 
         // Asociar a las instituciones seleccionadas con el rol especificado
@@ -64,7 +64,7 @@ class TeacherController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255|unique:users,email,' . $teacher->id,
+            'email' => 'required|email|max:255|unique:users,email,'.$teacher->id,
             'title' => 'nullable|string|max:255',
             'password' => 'nullable|string|min:6',
             'institution_ids' => 'required|array|min:1',
@@ -75,10 +75,10 @@ class TeacherController extends Controller
         $data = [
             'name' => $validated['name'],
             'email' => $validated['email'],
-            'title' => $validated['title'] ?: $teacher->title,
+            'title' => ($validated['title'] ?? null) ?: $teacher->title,
         ];
 
-        if (!empty($validated['password'])) {
+        if (! empty($validated['password'])) {
             $data['password'] = Hash::make($validated['password']);
         }
 

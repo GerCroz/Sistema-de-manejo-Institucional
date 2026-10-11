@@ -48,16 +48,19 @@ class StudentController extends Controller
 
         $validated = $request->validate([
             'course_id' => 'required|exists:courses,id',
-            'rut_dni' => 'required|string|max:20|unique:students,rut_dni',
+            'legajo' => 'nullable|string|max:50',
+            'rut_dni' => 'required|string|max:50|unique:students,rut_dni',
             'first_name' => 'required|string|max:100',
             'last_name' => 'required|string|max:100',
             'email' => 'nullable|email|max:150',
             'birth_date' => 'nullable|date',
             'guardian_name' => 'nullable|string|max:150',
             'guardian_phone' => 'nullable|string|max:50',
+            'status' => 'nullable|in:active,inactive,graduated',
         ]);
 
         $validated['institution_id'] = $activeInstId;
+        $validated['status'] = $validated['status'] ?? 'active';
         Student::create($validated);
 
         return redirect()->route('students.index')->with('success', 'Alumno registrado exitosamente');
@@ -75,11 +78,43 @@ class StudentController extends Controller
         return view('students.show', compact('student', 'gradesBySubject'));
     }
 
+    public function edit($id)
+    {
+        $activeInstId = session('active_institution_id', Institution::first()?->id);
+        $student = Student::findOrFail($id);
+        $courses = Course::where('institution_id', $activeInstId)->get();
+
+        return view('students.edit', compact('student', 'courses'));
+    }
+
+    public function update(Request $request, $id)
+    {
+        $student = Student::findOrFail($id);
+
+        $validated = $request->validate([
+            'course_id' => 'required|exists:courses,id',
+            'legajo' => 'nullable|string|max:50',
+            'rut_dni' => 'required|string|max:50|unique:students,rut_dni,'.$student->id,
+            'first_name' => 'required|string|max:100',
+            'last_name' => 'required|string|max:100',
+            'email' => 'nullable|email|max:150',
+            'birth_date' => 'nullable|date',
+            'guardian_name' => 'nullable|string|max:150',
+            'guardian_phone' => 'nullable|string|max:50',
+            'status' => 'required|in:active,inactive,graduated',
+        ]);
+
+        $student->update($validated);
+
+        return redirect()->route('students.index')->with('success', "Alumno {$student->full_name} actualizado exitosamente.");
+    }
+
     public function destroy($id)
     {
         $student = Student::findOrFail($id);
+        $name = $student->full_name;
         $student->delete();
 
-        return redirect()->route('students.index')->with('success', 'Alumno eliminado del sistema');
+        return redirect()->route('students.index')->with('success', "Alumno {$name} eliminado del sistema");
     }
 }

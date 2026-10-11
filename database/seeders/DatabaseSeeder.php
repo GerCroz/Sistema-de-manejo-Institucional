@@ -2,15 +2,15 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use App\Models\User;
-use App\Models\Institution;
-use App\Models\Course;
-use App\Models\Subject;
-use App\Models\Student;
 use App\Models\Attendance;
+use App\Models\Course;
 use App\Models\Evaluation;
 use App\Models\Grade;
+use App\Models\Institution;
+use App\Models\Student;
+use App\Models\Subject;
+use App\Models\User;
+use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {

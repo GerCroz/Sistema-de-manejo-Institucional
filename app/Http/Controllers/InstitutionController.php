@@ -47,7 +47,7 @@ class InstitutionController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'code' => 'required|string|max:50|unique:institutions,code,' . $institution->id,
+            'code' => 'required|string|max:50|unique:institutions,code,'.$institution->id,
             'address' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:50',
             'email' => 'nullable|email|max:255',
