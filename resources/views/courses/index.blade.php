@@ -37,12 +37,14 @@
             <p class="text-sm text-slate-400 mt-1">Administra los grupos académicos, años lectivos y la distribución de materias y profesores asignados.</p>
         </div>
 
-        <div>
-            <button @click="createCourseModal = true" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold text-sm shadow-lg shadow-indigo-600/30 transition-all flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                Nuevo Curso
-            </button>
-        </div>
+        @if(auth()->user()?->isAdmin())
+            <div>
+                <button @click="createCourseModal = true" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-semibold text-sm shadow-lg shadow-indigo-600/30 transition-all flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                    Nuevo Curso
+                </button>
+            </div>
+        @endif
     </div>
 
     <!-- Error / Alert handling -->
@@ -86,29 +88,36 @@
                         </div>
 
                         <!-- Course Actions -->
-                        <div class="flex items-center gap-1.5">
-                            <button @click="openEditCourse({{ $course }})" title="Editar Curso" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition-colors">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                            </button>
+                        @if(auth()->user()?->isAdmin())
+                            <div class="flex items-center gap-1.5">
+                                <button @click="openEditCourse({{ $course }})" title="Editar Curso" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white transition-colors">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                                </button>
 
-                            <form action="{{ route('courses.destroy', $course->id) }}" method="POST" onsubmit="return confirm('¿Eliminar el curso {{ $course->full_name }}? Esto eliminará también sus asignaturas asociadas.');">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" title="Eliminar Curso" class="p-2 rounded-lg bg-slate-800 hover:bg-rose-900/40 border border-slate-700 hover:border-rose-700/60 text-slate-400 hover:text-rose-300 transition-colors">
+                                <button type="button" 
+                                    @click="$dispatch('open-delete-modal', {
+                                        title: '¿Eliminar curso \'{{ addslashes($course->full_name) }}\'?',
+                                        message: 'Se eliminará el curso completo, incluyendo sus {{ $course->subjects_count }} asignaturas y las inscripciones académicas vinculadas.',
+                                        action: '{{ route('courses.destroy', $course->id) }}',
+                                        confirmText: 'Sí, Eliminar Curso'
+                                    })"
+                                    title="Eliminar Curso" class="p-2 rounded-lg bg-slate-800 hover:bg-rose-900/40 border border-slate-700 hover:border-rose-700/60 text-slate-400 hover:text-rose-300 transition-colors cursor-pointer">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                 </button>
-                            </form>
-                        </div>
+                            </div>
+                        @endif
                     </div>
 
                     <!-- Subjects List inside this course -->
                     <div class="mt-4 space-y-3">
                         <div class="flex items-center justify-between">
                             <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Asignaturas Impartidas</span>
-                            <button @click="openAddSubject({{ $course }})" class="text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                                Agregar Materia
-                            </button>
+                            @if(auth()->user()?->isAdmin())
+                                <button @click="openAddSubject({{ $course }})" class="text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+                                    Agregar Materia
+                                </button>
+                            @endif
                         </div>
 
                         <div class="space-y-2">
@@ -127,20 +136,28 @@
                                         </p>
                                     </div>
 
-                                    <form action="{{ route('subjects.destroy', $subject->id) }}" method="POST" onsubmit="return confirm('¿Eliminar la materia {{ $subject->name }}?');">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" title="Quitar Asignatura" class="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/30 transition-colors">
+                                    @if(auth()->user()?->isAdmin())
+                                        <button type="button" 
+                                            @click="$dispatch('open-delete-modal', {
+                                                title: '¿Eliminar asignatura \'{{ addslashes($subject->name) }}\'?',
+                                                message: 'Se borrarán de forma definitiva todas las evaluaciones y calificaciones asociadas a esta materia.',
+                                                action: '{{ route('subjects.destroy', $subject->id) }}',
+                                                confirmText: 'Sí, Eliminar Asignatura'
+                                            })"
+                                            title="Quitar Asignatura" class="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/30 transition-colors cursor-pointer">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                                         </button>
-                                    </form>
+                                    @endif
                                 </div>
                             @empty
                                 <div class="p-4 rounded-xl border border-dashed border-slate-700/60 text-center">
                                     <p class="text-xs text-slate-400">No hay materias registradas aún en este curso.</p>
-                                    <button @click="openAddSubject({{ $course }})" class="mt-2 text-xs font-semibold text-indigo-400 hover:underline">
-                                        + Registrar la primera materia
-                                    </button>
+                                    @if(auth()->user()?->isAdmin())
+                                        <button @click="openAddSubject({{ $course }})" class="mt-2 text-xs font-semibold text-indigo-400 hover:underline">
+                                            + Registrar la primera materia
+                                        </button>
+                                    @endif
+                                </div>
                                 </div>
                             @endforelse
                         </div>

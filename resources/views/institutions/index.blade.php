@@ -112,14 +112,17 @@
                         </button>
 
                         @if($institutions->count() > 1)
-                            <form action="{{ route('institutions.destroy', $inst->id) }}" method="POST" onsubmit="return confirm('¿Seguro que deseas eliminar esta institución? Se eliminarán también sus cursos y alumnos asociados.')">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="px-2.5 py-1 text-slate-400 hover:text-rose-400 hover:bg-slate-800/60 rounded-lg transition-all flex items-center gap-1">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                    Eliminar
-                                </button>
-                            </form>
+                            <button type="button" 
+                                @click="$dispatch('open-delete-modal', {
+                                    title: '¿Eliminar institución \'{{ addslashes($inst->name) }}\'?',
+                                    message: 'Esta acción borrará permanentemente la institución junto con todos sus cursos, materias, alumnos y calificaciones asociadas. Los usuarios perderán la asignación a este establecimiento.',
+                                    action: '{{ route('institutions.destroy', $inst->id) }}',
+                                    confirmText: 'Sí, Eliminar Institución'
+                                })"
+                                class="px-2.5 py-1 text-slate-400 hover:text-rose-400 hover:bg-rose-950/30 rounded-lg transition-all flex items-center gap-1 cursor-pointer">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                Eliminar
+                            </button>
                         @endif
                     </div>
                 </div>

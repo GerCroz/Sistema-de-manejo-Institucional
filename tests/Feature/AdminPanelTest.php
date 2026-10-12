@@ -13,6 +13,22 @@ class AdminPanelTest extends TestCase
 {
     use RefreshDatabase;
 
+    private User $admin;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->admin = User::create([
+            'name' => 'Admin Tester',
+            'email' => 'admin.test@escuela.test',
+            'password' => bcrypt('password123'),
+            'role' => 'admin',
+        ]);
+
+        $this->actingAs($this->admin);
+    }
+
     public function test_can_render_teachers_index_and_create_teacher(): void
     {
         $institution = Institution::create([

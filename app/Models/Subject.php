@@ -14,10 +14,16 @@ class Subject extends Model
     protected $fillable = [
         'institution_id',
         'course_id',
+        'teacher_id',
         'name',
         'code',
         'teacher_name',
     ];
+
+    public function teacher(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'teacher_id');
+    }
 
     public function institution(): BelongsTo
     {

@@ -16,15 +16,34 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        // 0. Administrador General del Sistema
+        $admin = User::create([
+            'name' => 'Administrador General',
+            'email' => 'admin@escuela.edu',
+            'title' => 'Director General y Administrador del Sistema',
+            'role' => 'admin',
+            'password' => bcrypt('password123'),
+        ]);
+
         // 1. Docente Principal (gestiona 2 instituciones)
         $teacher = User::create([
             'name' => 'Prof. Carlos Mendoza',
             'email' => 'carlos.mendoza@escuela.edu',
             'title' => 'Docente Senior de Ciencias y Matemáticas',
+            'role' => 'teacher',
             'password' => bcrypt('password123'),
         ]);
 
-        // 2. Institución 1: Colegio San Agustín
+        // 2. Docente Secundaria (para verificar separación de permisos)
+        $teacher2 = User::create([
+            'name' => 'Prof. Marcela Soto',
+            'email' => 'marcela.soto@escuela.edu',
+            'title' => 'Docente de Historia y Ciencias Sociales',
+            'role' => 'teacher',
+            'password' => bcrypt('password123'),
+        ]);
+
+        // 3. Institución 1: Colegio San Agustín
         $inst1 = Institution::create([
             'name' => 'Colegio San Agustín',
             'code' => 'CSA-001',
@@ -34,7 +53,7 @@ class DatabaseSeeder extends Seeder
             'logo_color' => '#4f46e5', // Indigo
         ]);
 
-        // 3. Institución 2: Liceo Bicentenario Santa María
+        // 4. Institución 2: Liceo Bicentenario Santa María
         $inst2 = Institution::create([
             'name' => 'Liceo Bicentenario Santa María',
             'code' => 'LBSM-002',
@@ -44,10 +63,21 @@ class DatabaseSeeder extends Seeder
             'logo_color' => '#059669', // Emerald Green
         ]);
 
-        // Vincular docente a ambas instituciones
+        // Vincular admin a ambas instituciones como admin
+        $admin->institutions()->attach([
+            $inst1->id => ['role' => 'admin'],
+            $inst2->id => ['role' => 'admin'],
+        ]);
+
+        // Vincular docente principal a ambas instituciones
         $teacher->institutions()->attach([
             $inst1->id => ['role' => 'teacher'],
             $inst2->id => ['role' => 'teacher'],
+        ]);
+
+        // Vincular docente 2 a Institución 1
+        $teacher2->institutions()->attach([
+            $inst1->id => ['role' => 'teacher'],
         ]);
 
         // --- DATOS COLEGIO SAN AGUSTÍN ---
@@ -68,6 +98,7 @@ class DatabaseSeeder extends Seeder
         $sub1_inst1 = Subject::create([
             'institution_id' => $inst1->id,
             'course_id' => $course1->id,
+            'teacher_id' => $teacher->id,
             'name' => 'Matemáticas I',
             'code' => 'MAT-101',
             'teacher_name' => $teacher->name,
@@ -76,9 +107,19 @@ class DatabaseSeeder extends Seeder
         $sub2_inst1 = Subject::create([
             'institution_id' => $inst1->id,
             'course_id' => $course1->id,
+            'teacher_id' => $teacher->id,
             'name' => 'Física General',
             'code' => 'FIS-101',
             'teacher_name' => $teacher->name,
+        ]);
+
+        $sub3_inst1 = Subject::create([
+            'institution_id' => $inst1->id,
+            'course_id' => $course2->id,
+            'teacher_id' => $teacher2->id,
+            'name' => 'Historia Universal',
+            'code' => 'HIS-301',
+            'teacher_name' => $teacher2->name,
         ]);
 
         // Alumnos de 1º Medio A (Colegio San Agustín)
@@ -111,6 +152,7 @@ class DatabaseSeeder extends Seeder
         $sub1_inst2 = Subject::create([
             'institution_id' => $inst2->id,
             'course_id' => $course_inst2->id,
+            'teacher_id' => $teacher->id,
             'name' => 'Álgebra y Trigonometría',
             'code' => 'ALG-201',
             'teacher_name' => $teacher->name,

@@ -46,6 +46,23 @@
                     <h2 class="text-lg font-bold text-white">Nómina: {{ $selectedCourse->full_name }}</h2>
                     <span class="text-xs text-slate-400">Fecha: {{ $date }} &bull; {{ count($students) }} Alumnos</span>
                 </div>
+                @if($existingAttendances->isNotEmpty())
+                    <button type="button" 
+                        @click="$dispatch('open-delete-modal', {
+                            title: '¿Eliminar asistencias del día {{ $date }}?',
+                            message: 'Se borrarán todos los registros de asistencia tomados para el curso {{ addslashes($selectedCourse->full_name) }} en esta fecha ({{ $existingAttendances->count() }} alumnos registrados).',
+                            action: '{{ route('attendance.destroy') }}',
+                            confirmText: 'Sí, Eliminar Asistencias',
+                            extraInputs: [
+                                { name: 'course_id', value: '{{ $selectedCourseId }}' },
+                                { name: 'date', value: '{{ $date }}' }
+                            ]
+                        })"
+                        class="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        <span>Limpiar Asistencias</span>
+                    </button>
+                @endif
             </div>
 
             <form action="{{ route('attendance.store') }}" method="POST">

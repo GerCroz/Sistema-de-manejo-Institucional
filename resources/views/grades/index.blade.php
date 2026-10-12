@@ -48,14 +48,30 @@
             <!-- List of Evaluations -->
             <div class="px-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 @foreach($selectedSubject->evaluations as $eval)
-                    <div class="p-3 rounded-xl bg-slate-800/50 border border-slate-700/50">
-                        <div class="flex items-center justify-between">
-                            <span class="font-bold text-xs text-white truncate">{{ $eval->title }}</span>
-                            <span class="px-2 py-0.5 rounded text-[11px] font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                                {{ $eval->weight_percentage }}%
-                            </span>
+                    <div class="p-3.5 rounded-xl bg-slate-800/50 border border-slate-700/50 flex flex-col justify-between group hover:border-slate-600 transition-all">
+                        <div>
+                            <div class="flex items-start justify-between gap-2">
+                                <span class="font-bold text-xs text-white leading-tight">{{ $eval->title }}</span>
+                                <span class="px-2 py-0.5 rounded text-[11px] font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shrink-0">
+                                    {{ $eval->weight_percentage }}%
+                                </span>
+                            </div>
+                            <span class="text-[11px] text-slate-400 block mt-1.5">Fecha: {{ $eval->date }}</span>
                         </div>
-                        <span class="text-[11px] text-slate-400 block mt-1">Fecha: {{ $eval->date }}</span>
+
+                        <div class="mt-3 pt-2.5 border-t border-slate-700/50 flex items-center justify-between text-xs">
+                            <span class="text-[11px] text-slate-400 font-mono">{{ $eval->grades->count() }} notas</span>
+                            <button type="button" 
+                                @click="$dispatch('open-delete-modal', {
+                                    title: '¿Eliminar evaluación \'{{ addslashes($eval->title) }}\'?',
+                                    message: 'Se borrarán de forma definitiva todas las notas registradas de los alumnos en esta evaluación ({{ $eval->grades->count() }} notas asociadas).',
+                                    action: '{{ route('grades.destroyEvaluation', $eval->id) }}',
+                                    confirmText: 'Sí, Eliminar Evaluación'
+                                })"
+                                class="p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-950/30 transition-colors cursor-pointer" title="Eliminar Evaluación">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </div>
                     </div>
                 @endforeach
             </div>

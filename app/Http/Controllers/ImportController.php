@@ -13,12 +13,25 @@ class ImportController extends Controller
     /**
      * Muestra la interfaz de importación de planillas.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $activeInstId = session('active_institution_id', Institution::first()?->id);
-        $institutions = Institution::all();
-        $courses = Course::where('institution_id', $activeInstId)->get();
-        $subjects = Subject::where('institution_id', $activeInstId)->get();
+        $user = $request->user();
+        $isTeacher = $user && ! $user->isAdmin();
+
+        $institutions = $isTeacher ? $user->institutions : Institution::all();
+        $activeInstId = session('active_institution_id', $institutions->first()?->id);
+
+        if ($isTeacher) {
+            $courses = Course::where('institution_id', $activeInstId)
+                ->whereHas('subjects', fn ($q) => $q->where('teacher_id', $user->id))
+                ->get();
+            $subjects = Subject::where('institution_id', $activeInstId)
+                ->where('teacher_id', $user->id)
+                ->get();
+        } else {
+            $courses = Course::where('institution_id', $activeInstId)->get();
+            $subjects = Subject::where('institution_id', $activeInstId)->get();
+        }
 
         return view('import.index', compact('institutions', 'courses', 'subjects', 'activeInstId'));
     }
@@ -28,6 +41,9 @@ class ImportController extends Controller
      */
     public function process(Request $request, AttendanceSheetImportService $service)
     {
+        $user = $request->user();
+        $isTeacher = $user && ! $user->isAdmin();
+
         $request->validate([
             'file' => 'nullable|file|mimes:csv,txt|max:5120',
             'raw_content' => 'nullable|string',
@@ -51,7 +67,20 @@ class ImportController extends Controller
             $courseId = $request->course_id;
             $subjectId = $request->subject_id;
 
+            // Validación de permisos docentes para importar en cursos/materias
+            if ($isTeacher && $subjectId) {
+                $subject = Subject::find($subjectId);
+                if ($subject && $subject->teacher_id !== $user->id) {
+                    return back()->withErrors(['error' => 'No tienes permisos para importar registros en una asignatura que no te pertenece.']);
+                }
+            }
+
             $result = $service->import($content, $institutionId, $courseId, $subjectId);
+
+            // Si se importó y creó la asignatura con un docente, vincular al docente activo si es docente
+            if ($isTeacher && $result['subject'] && ! $result['subject']->teacher_id) {
+                $result['subject']->update(['teacher_id' => $user->id, 'teacher_name' => $user->name]);
+            }
 
             return redirect()->route('import.index')->with([
                 'success' => 'Planilla importada exitosamente.',

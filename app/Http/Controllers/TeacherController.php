@@ -42,6 +42,7 @@ class TeacherController extends Controller
             'name' => $validated['name'],
             'email' => $validated['email'],
             'title' => ($validated['title'] ?? null) ?: 'Docente Titular',
+            'role' => $validated['role'],
             'password' => Hash::make(($validated['password'] ?? null) ?: 'password123'),
         ]);
 
@@ -76,6 +77,7 @@ class TeacherController extends Controller
             'name' => $validated['name'],
             'email' => $validated['email'],
             'title' => ($validated['title'] ?? null) ?: $teacher->title,
+            'role' => $validated['role'],
         ];
 
         if (! empty($validated['password'])) {
@@ -97,14 +99,25 @@ class TeacherController extends Controller
     /**
      * Elimina el docente del sistema.
      */
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $teacher = User::findOrFail($id);
+
+        if ($teacher->id === $request->user()?->id) {
+            return back()->withErrors(['error' => 'No puedes eliminar tu propia cuenta de administrador en sesión activa.']);
+        }
+
         $name = $teacher->name;
+
+        // Desvincular de materias asignadas para no dejar referencias rotas
+        $teacher->subjects()->update([
+            'teacher_id' => null,
+            'teacher_name' => 'Docente Titular (Por asignar)',
+        ]);
 
         $teacher->institutions()->detach();
         $teacher->delete();
 
-        return redirect()->route('teachers.index')->with('success', "Docente {$name} eliminado del sistema.");
+        return redirect()->route('teachers.index')->with('success', "Docente {$name} eliminado del sistema correctamente.");
     }
 }

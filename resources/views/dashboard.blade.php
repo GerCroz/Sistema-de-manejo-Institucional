@@ -20,6 +20,16 @@
         </div>
     </div>
 
+    @if(!empty($isTeacher))
+        <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 flex items-center justify-between text-xs font-semibold">
+            <div class="flex items-center gap-2.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                <span>Vista Docente: Mostrando estadísticas y alumnos correspondientes a tus materias asignadas.</span>
+            </div>
+            <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-200 uppercase tracking-wider text-[10px]">Rol Docente</span>
+        </div>
+    @endif
+
     <!-- KPI Metric Cards Grid -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <!-- Card 1: Total Alumnos -->

@@ -6,6 +6,7 @@ use App\Models\Attendance;
 use App\Models\Grade;
 use App\Models\Institution;
 use App\Models\Student;
+use App\Models\User;
 use App\Services\AttendanceSheetImportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -19,6 +20,14 @@ class AttendanceSheetImportTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        $admin = User::create([
+            'name' => 'Admin Import Tester',
+            'email' => 'admin.import@escuela.test',
+            'password' => bcrypt('password123'),
+            'role' => 'admin',
+        ]);
+        $this->actingAs($admin);
 
         $this->sampleCsv = 'PLANILLA DE ASISTENCIA – SISTEMAS OPERATIVOS Y REDES;;;;;;;;;;;;
 Año Académico;2026;Período Lectivo;2do Cuatrimestre;;Clases desde;31/08/2026;;;;;;

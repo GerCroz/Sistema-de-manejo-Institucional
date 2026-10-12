@@ -12,17 +12,35 @@ class GradeController extends Controller
 {
     public function index(Request $request)
     {
+        $user = $request->user();
         $activeInstId = session('active_institution_id', Institution::first()?->id);
-        $subjects = Subject::where('institution_id', $activeInstId)->with('course')->get();
+
+        if ($user && ! $user->isAdmin()) {
+            // Un docente solo ve y administra las materias que le fueron asignadas
+            $subjects = Subject::where('institution_id', $activeInstId)
+                ->where('teacher_id', $user->id)
+                ->with('course')
+                ->get();
+        } else {
+            $subjects = Subject::where('institution_id', $activeInstId)->with('course')->get();
+        }
+
         $selectedSubjectId = $request->input('subject_id', $subjects->first()?->id);
 
-        $selectedSubject = Subject::with(['evaluations.grades', 'course.students'])->find($selectedSubjectId);
+        if ($subjects->isNotEmpty() && ! $subjects->pluck('id')->contains($selectedSubjectId)) {
+            $selectedSubjectId = $subjects->first()->id;
+        }
+
+        $selectedSubject = $selectedSubjectId
+            ? Subject::with(['evaluations.grades', 'course.students'])->find($selectedSubjectId)
+            : null;
 
         return view('grades.index', compact('subjects', 'selectedSubjectId', 'selectedSubject'));
     }
 
     public function storeEvaluation(Request $request)
     {
+        $user = $request->user();
         $activeInstId = session('active_institution_id', Institution::first()?->id);
 
         $validated = $request->validate([
@@ -32,6 +50,13 @@ class GradeController extends Controller
             'date' => 'required|date',
         ]);
 
+        if ($user && ! $user->isAdmin()) {
+            $subject = Subject::findOrFail($validated['subject_id']);
+            if ($subject->teacher_id !== $user->id) {
+                abort(403, 'No estás asignado a esta asignatura para crear evaluaciones.');
+            }
+        }
+
         $validated['institution_id'] = $activeInstId;
         Evaluation::create($validated);
 
@@ -40,12 +65,20 @@ class GradeController extends Controller
 
     public function storeGrades(Request $request)
     {
+        $user = $request->user();
         $request->validate([
             'evaluation_id' => 'required|exists:evaluations,id',
             'scores' => 'required|array',
         ]);
 
         $evaluationId = $request->evaluation_id;
+        $evaluation = Evaluation::with('subject')->findOrFail($evaluationId);
+
+        if ($user && ! $user->isAdmin()) {
+            if ($evaluation->subject->teacher_id !== $user->id) {
+                abort(403, 'No tienes permisos para calificar esta evaluación.');
+            }
+        }
 
         foreach ($request->scores as $studentId => $score) {
             if ($score !== null && $score !== '') {
@@ -63,5 +96,26 @@ class GradeController extends Controller
         }
 
         return redirect()->back()->with('success', 'Calificaciones registradas correctamente');
+    }
+
+    /**
+     * Elimina una evaluación y sus notas asociadas.
+     */
+    public function destroyEvaluation(Request $request, $id)
+    {
+        $evaluation = Evaluation::with('subject')->findOrFail($id);
+        $user = $request->user();
+
+        if ($user && ! $user->isAdmin()) {
+            if ($evaluation->subject->teacher_id !== $user->id) {
+                abort(403, 'No tienes permisos para eliminar esta evaluación.');
+            }
+        }
+
+        $title = $evaluation->title;
+        $evaluation->grades()->delete();
+        $evaluation->delete();
+
+        return redirect()->back()->with('success', "Evaluación \"{$title}\" y sus calificaciones asociadas han sido eliminadas.");
     }
 }

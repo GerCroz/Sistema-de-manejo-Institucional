@@ -11,9 +11,22 @@ class StudentController extends Controller
 {
     public function index(Request $request)
     {
+        $user = $request->user();
         $activeInstId = session('active_institution_id', Institution::first()?->id);
 
         $query = Student::where('institution_id', $activeInstId)->with('course');
+
+        if ($user && ! $user->isAdmin()) {
+            // El docente solo ve alumnos inscritos en los cursos donde él enseña alguna materia
+            $teacherCourseIds = Course::where('institution_id', $activeInstId)
+                ->whereHas('subjects', fn ($q) => $q->where('teacher_id', $user->id))
+                ->pluck('id');
+
+            $query->whereIn('course_id', $teacherCourseIds);
+            $courses = Course::where('institution_id', $activeInstId)->whereIn('id', $teacherCourseIds)->get();
+        } else {
+            $courses = Course::where('institution_id', $activeInstId)->get();
+        }
 
         if ($request->filled('course_id')) {
             $query->where('course_id', $request->course_id);
@@ -29,7 +42,6 @@ class StudentController extends Controller
         }
 
         $students = $query->paginate(15);
-        $courses = Course::where('institution_id', $activeInstId)->get();
 
         return view('students.index', compact('students', 'courses', 'activeInstId'));
     }
@@ -66,9 +78,20 @@ class StudentController extends Controller
         return redirect()->route('students.index')->with('success', 'Alumno registrado exitosamente');
     }
 
-    public function show($id)
+    public function show(Request $request, $id)
     {
+        $user = $request->user();
         $student = Student::with(['course', 'attendances', 'grades.evaluation.subject'])->findOrFail($id);
+
+        if ($user && ! $user->isAdmin()) {
+            $teacherCourseIds = Course::where('institution_id', $student->institution_id)
+                ->whereHas('subjects', fn ($q) => $q->where('teacher_id', $user->id))
+                ->pluck('id');
+
+            if (! $teacherCourseIds->contains($student->course_id)) {
+                abort(403, 'No tienes autorización para ver la ficha de este alumno.');
+            }
+        }
 
         // Agrupar calificaciones por materia
         $gradesBySubject = $student->grades->groupBy(function ($grade) {
@@ -109,12 +132,20 @@ class StudentController extends Controller
         return redirect()->route('students.index')->with('success', "Alumno {$student->full_name} actualizado exitosamente.");
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
+        if (! $request->user()?->isAdmin()) {
+            abort(403, 'Solo los administradores del sistema tienen permisos para eliminar alumnos.');
+        }
+
         $student = Student::findOrFail($id);
         $name = $student->full_name;
+
+        // Limpiar asistencias y calificaciones asociadas
+        $student->attendances()->delete();
+        $student->grades()->delete();
         $student->delete();
 
-        return redirect()->route('students.index')->with('success', "Alumno {$name} eliminado del sistema");
+        return redirect()->route('students.index')->with('success', "Alumno {$name} eliminado del sistema correctamente.");
     }
 }

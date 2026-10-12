@@ -13,19 +13,34 @@ class CourseController extends Controller
     /**
      * Muestra la estructura de cursos y materias de la institución activa.
      */
-    public function index()
+    public function index(Request $request)
     {
+        $user = $request->user();
         $activeInstId = session('active_institution_id', Institution::first()?->id);
         $institution = Institution::findOrFail($activeInstId);
 
-        $courses = Course::where('institution_id', $activeInstId)
-            ->with(['subjects', 'students'])
-            ->withCount(['students', 'subjects'])
-            ->orderBy('name')
-            ->get();
+        if ($user && ! $user->isAdmin()) {
+            // Un docente solo ve los cursos que contienen sus asignaturas y solo sus asignaturas asignadas
+            $courses = Course::where('institution_id', $activeInstId)
+                ->whereHas('subjects', fn ($q) => $q->where('teacher_id', $user->id))
+                ->with([
+                    'subjects' => fn ($q) => $q->where('teacher_id', $user->id),
+                    'students',
+                ])
+                ->withCount(['students', 'subjects'])
+                ->orderBy('name')
+                ->get();
+        } else {
+            // El administrador ve todos los cursos y materias de la institución
+            $courses = Course::where('institution_id', $activeInstId)
+                ->with(['subjects', 'students'])
+                ->withCount(['students', 'subjects'])
+                ->orderBy('name')
+                ->get();
+        }
 
         // Lista de docentes para asignar a materias
-        $teachers = User::orderBy('name')->get();
+        $teachers = User::where('role', 'teacher')->orWhereNull('role')->orderBy('name')->get();
 
         return view('courses.index', compact('courses', 'institution', 'teachers', 'activeInstId'));
     }
@@ -91,11 +106,20 @@ class CourseController extends Controller
             'name' => 'required|string|max:150',
             'code' => 'nullable|string|max:50',
             'teacher_name' => 'nullable|string|max:150',
+            'teacher_id' => 'nullable|exists:users,id',
         ]);
 
         $validated['institution_id'] = $activeInstId;
         $validated['course_id'] = $course->id;
-        $validated['teacher_name'] = $validated['teacher_name'] ?: 'Docente Titular';
+
+        if (! empty($validated['teacher_id'])) {
+            $assignedTeacher = User::find($validated['teacher_id']);
+            if ($assignedTeacher) {
+                $validated['teacher_name'] = $assignedTeacher->name;
+            }
+        } else {
+            $validated['teacher_name'] = $validated['teacher_name'] ?: 'Docente Titular';
+        }
 
         $subject = Subject::create($validated);
 
