@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Course;
 use App\Models\Institution;
 use App\Models\Student;
+use App\Models\Subject;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -96,6 +97,29 @@ class AdminPanelTest extends TestCase
             'course_id' => $course->id,
             'institution_id' => $institution->id,
         ]);
+
+        // Probar asignación mediante teacher_id
+        $teacher = User::create([
+            'name' => 'Prof. Laura Gómez',
+            'email' => 'laura.gomez@escuela.test',
+            'password' => bcrypt('password123'),
+            'role' => 'teacher',
+        ]);
+
+        $postSubjectWithTeacher = $this->post(route('courses.subjects.store', $course->id), [
+            'name' => 'Bases de Datos',
+            'code' => 'BD-2026',
+            'teacher_id' => $teacher->id,
+        ]);
+
+        $postSubjectWithTeacher->assertRedirect(route('courses.index'));
+        $this->assertDatabaseHas('subjects', [
+            'name' => 'Bases de Datos',
+            'teacher_id' => $teacher->id,
+            'teacher_name' => 'Prof. Laura Gómez',
+            'course_id' => $course->id,
+            'institution_id' => $institution->id,
+        ]);
     }
 
     public function test_can_edit_student(): void
@@ -143,5 +167,176 @@ class AdminPanelTest extends TestCase
             'first_name' => 'Martina Sofía',
             'email' => 'martina@escuela.test',
         ]);
+    }
+
+    public function test_admin_can_update_subject_and_assign_existing_teacher(): void
+    {
+        $institution = Institution::create([
+            'name' => 'Colegio San José',
+            'code' => 'CSJ',
+        ]);
+        session(['active_institution_id' => $institution->id]);
+
+        $course = Course::create([
+            'institution_id' => $institution->id,
+            'name' => '4to Año',
+            'academic_year' => '2026',
+        ]);
+
+        $subject = Subject::create([
+            'institution_id' => $institution->id,
+            'course_id' => $course->id,
+            'name' => 'Física Cuántica',
+            'code' => 'FIS-01',
+            'teacher_name' => 'Docente Titular',
+        ]);
+
+        $teacher = User::create([
+            'name' => 'Dr. Alberto Einstein',
+            'email' => 'alberto@escuela.test',
+            'password' => bcrypt('password123'),
+            'role' => 'teacher',
+        ]);
+
+        $response = $this->put(route('subjects.update', $subject->id), [
+            'name' => 'Física Moderna',
+            'code' => 'FIS-MOD',
+            'teacher_id' => $teacher->id,
+        ]);
+
+        $response->assertRedirect(route('courses.index'));
+        $response->assertSessionHas('success');
+
+        $this->assertDatabaseHas('subjects', [
+            'id' => $subject->id,
+            'name' => 'Física Moderna',
+            'code' => 'FIS-MOD',
+            'teacher_id' => $teacher->id,
+            'teacher_name' => 'Dr. Alberto Einstein',
+        ]);
+
+        // Verifica que el docente se haya vinculado a la institución
+        $this->assertTrue($teacher->fresh()->institutions->contains($institution));
+    }
+
+    public function test_admin_can_update_subject_and_create_new_teacher_on_the_fly(): void
+    {
+        $institution = Institution::create([
+            'name' => 'Colegio Las Heras',
+            'code' => 'CLH',
+        ]);
+        session(['active_institution_id' => $institution->id]);
+
+        $course = Course::create([
+            'institution_id' => $institution->id,
+            'name' => '2do Año',
+            'academic_year' => '2026',
+        ]);
+
+        $subject = Subject::create([
+            'institution_id' => $institution->id,
+            'course_id' => $course->id,
+            'name' => 'Química Orgánica',
+            'code' => 'QUI-01',
+            'teacher_name' => 'Docente Titular',
+        ]);
+
+        $response = $this->put(route('subjects.update', $subject->id), [
+            'name' => 'Química Avanzada',
+            'code' => 'QUI-AVZ',
+            'new_teacher_name' => 'Dra. Marie Curie',
+            'new_teacher_email' => 'marie.curie@escuela.test',
+            'new_teacher_title' => 'Investigadora y Profesora',
+        ]);
+
+        $response->assertRedirect(route('courses.index'));
+        $this->assertDatabaseHas('users', [
+            'email' => 'marie.curie@escuela.test',
+            'name' => 'Dra. Marie Curie',
+            'role' => 'teacher',
+        ]);
+
+        $newTeacher = User::where('email', 'marie.curie@escuela.test')->first();
+
+        $this->assertDatabaseHas('subjects', [
+            'id' => $subject->id,
+            'name' => 'Química Avanzada',
+            'teacher_id' => $newTeacher->id,
+            'teacher_name' => 'Dra. Marie Curie',
+        ]);
+
+        $this->assertTrue($newTeacher->institutions->contains($institution));
+    }
+
+    public function test_admin_can_quick_create_teacher_via_ajax(): void
+    {
+        $institution = Institution::create([
+            'name' => 'Instituto Politécnico',
+            'code' => 'IPOL',
+        ]);
+
+        $response = $this->postJson(route('teachers.quick'), [
+            'name' => 'Lic. Alan Turing',
+            'email' => 'alan.turing@escuela.test',
+            'title' => 'Especialista en Computación',
+            'institution_id' => $institution->id,
+        ]);
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'success' => true,
+            'teacher' => [
+                'name' => 'Lic. Alan Turing',
+                'email' => 'alan.turing@escuela.test',
+            ],
+        ]);
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'alan.turing@escuela.test',
+            'role' => 'teacher',
+        ]);
+    }
+
+    public function test_teacher_cannot_update_subject_or_access_quick_teacher(): void
+    {
+        $teacher = User::create([
+            'name' => 'Docente Regular',
+            'email' => 'docente.regular@escuela.test',
+            'password' => bcrypt('password123'),
+            'role' => 'teacher',
+        ]);
+
+        $this->actingAs($teacher);
+
+        $institution = Institution::create([
+            'name' => 'Colegio Belgrano',
+            'code' => 'CBEL',
+        ]);
+
+        $course = Course::create([
+            'institution_id' => $institution->id,
+            'name' => '1er Año',
+            'academic_year' => '2026',
+        ]);
+
+        $subject = Subject::create([
+            'institution_id' => $institution->id,
+            'course_id' => $course->id,
+            'name' => 'Biología',
+            'teacher_id' => $teacher->id,
+        ]);
+
+        $updateResponse = $this->put(route('subjects.update', $subject->id), [
+            'name' => 'Biología II',
+        ]);
+
+        $updateResponse->assertStatus(403);
+
+        $quickResponse = $this->postJson(route('teachers.quick'), [
+            'name' => 'Otro Docente',
+            'email' => 'otro@escuela.test',
+        ]);
+
+        $quickResponse->assertStatus(403);
     }
 }

@@ -24,6 +24,57 @@ class TeacherController extends Controller
     }
 
     /**
+     * Registra rápidamente un docente desde modales de asignaturas y lo vincula a la institución activa.
+     */
+    public function quickStore(Request $request)
+    {
+        $activeInstId = session('active_institution_id', Institution::first()?->id);
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|max:255|unique:users,email',
+            'title' => 'nullable|string|max:255',
+            'institution_id' => 'nullable|exists:institutions,id',
+        ], [
+            'name.required' => 'El nombre del docente es obligatorio.',
+            'email.required' => 'El correo electrónico es obligatorio.',
+            'email.email' => 'Ingresa un correo electrónico válido.',
+            'email.unique' => 'Este correo ya se encuentra registrado en el sistema.',
+        ]);
+
+        $institutionId = $validated['institution_id'] ?? $activeInstId;
+
+        $teacher = User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'title' => ($validated['title'] ?? null) ?: 'Docente Titular',
+            'role' => 'teacher',
+            'password' => Hash::make('password123'),
+        ]);
+
+        if ($institutionId) {
+            $teacher->institutions()->syncWithoutDetaching([
+                $institutionId => ['role' => 'teacher'],
+            ]);
+        }
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'teacher' => [
+                    'id' => $teacher->id,
+                    'name' => $teacher->name,
+                    'title' => $teacher->title,
+                    'email' => $teacher->email,
+                ],
+                'message' => "Docente {$teacher->name} creado exitosamente.",
+            ]);
+        }
+
+        return back()->with('success', "Docente {$teacher->name} registrado exitosamente.");
+    }
+
+    /**
      * Registra un nuevo maestro/docente y lo vincula a instituciones.
      */
     public function store(Request $request)

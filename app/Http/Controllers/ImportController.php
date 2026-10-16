@@ -24,13 +24,17 @@ class ImportController extends Controller
         if ($isTeacher) {
             $courses = Course::where('institution_id', $activeInstId)
                 ->whereHas('subjects', fn ($q) => $q->where('teacher_id', $user->id))
+                ->with(['subjects' => fn ($q) => $q->where('teacher_id', $user->id)])
+                ->orderBy('name')
                 ->get();
             $subjects = Subject::where('institution_id', $activeInstId)
                 ->where('teacher_id', $user->id)
+                ->with('course')
+                ->orderBy('name')
                 ->get();
         } else {
-            $courses = Course::where('institution_id', $activeInstId)->get();
-            $subjects = Subject::where('institution_id', $activeInstId)->get();
+            $courses = Course::where('institution_id', $activeInstId)->with('subjects')->orderBy('name')->get();
+            $subjects = Subject::where('institution_id', $activeInstId)->with('course')->orderBy('name')->get();
         }
 
         return view('import.index', compact('institutions', 'courses', 'subjects', 'activeInstId'));
@@ -45,11 +49,17 @@ class ImportController extends Controller
         $isTeacher = $user && ! $user->isAdmin();
 
         $request->validate([
-            'file' => 'nullable|file|mimes:csv,txt|max:5120',
+            'file' => 'nullable|file|extensions:csv,txt,tsv|max:10240',
             'raw_content' => 'nullable|string',
             'institution_id' => 'nullable|exists:institutions,id',
             'course_id' => 'nullable|exists:courses,id',
             'subject_id' => 'nullable|exists:subjects,id',
+            'new_course_name' => 'nullable|string|max:150',
+            'new_subject_name' => 'nullable|string|max:150',
+            'new_subject_code' => 'nullable|string|max:50',
+        ], [
+            'file.extensions' => 'El archivo debe ser un archivo con extensión .csv o .txt válido.',
+            'file.max' => 'El tamaño del archivo no puede superar los 10 MB.',
         ]);
 
         $content = '';
@@ -64,8 +74,40 @@ class ImportController extends Controller
 
         try {
             $institutionId = $request->institution_id ?: session('active_institution_id', Institution::first()?->id);
-            $courseId = $request->course_id;
-            $subjectId = $request->subject_id;
+            $courseId = $request->filled('course_id') ? (int) $request->course_id : null;
+            $subjectId = $request->filled('subject_id') ? (int) $request->subject_id : null;
+
+            // Creación dinámica de carrera / curso si el usuario especificó uno nuevo
+            if (! $courseId && $request->filled('new_course_name')) {
+                $newCourse = Course::firstOrCreate(
+                    [
+                        'institution_id' => $institutionId,
+                        'name' => trim($request->new_course_name),
+                    ],
+                    [
+                        'section' => 'Única',
+                        'academic_year' => '2026',
+                    ]
+                );
+                $courseId = $newCourse->id;
+            }
+
+            // Creación dinámica de materia / asignatura si el usuario especificó una nueva
+            if (! $subjectId && $request->filled('new_subject_name')) {
+                $newSubject = Subject::firstOrCreate(
+                    [
+                        'institution_id' => $institutionId,
+                        'course_id' => $courseId ?? Course::where('institution_id', $institutionId)->first()?->id ?? 1,
+                        'name' => trim($request->new_subject_name),
+                    ],
+                    [
+                        'code' => $request->filled('new_subject_code') ? trim($request->new_subject_code) : null,
+                        'teacher_name' => $isTeacher ? $user->name : ('Cátedra '.trim($request->new_subject_name)),
+                        'teacher_id' => $isTeacher ? $user->id : null,
+                    ]
+                );
+                $subjectId = $newSubject->id;
+            }
 
             // Validación de permisos docentes para importar en cursos/materias
             if ($isTeacher && $subjectId) {

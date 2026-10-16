@@ -51,84 +51,41 @@ class AttendanceSheetImportService
                 ]);
             }
 
-            // 2. Resolver Curso
-            $courseName = ! empty($metadata['periodo'])
-                ? "Sistemas Operativos - {$metadata['periodo']} {$metadata['anio']}"
-                : "Sistemas Operativos y Redes ({$metadata['anio']})";
-
-            $course = $courseId
-                ? Course::findOrFail($courseId)
-                : Course::firstOrCreate(
-                    [
-                        'institution_id' => $institution->id,
-                        'name' => $courseName,
-                        'academic_year' => $metadata['anio'] ?? '2026',
-                    ],
-                    [
-                        'section' => 'Única',
-                    ]
-                );
-
-            // 3. Resolver Materia
-            $subjectName = $metadata['actividad_nombre'] ?? 'Sistemas Operativos y Redes';
-            $subjectCode = $metadata['actividad_codigo'] ?? '208';
-
-            $subject = $subjectId
-                ? Subject::findOrFail($subjectId)
-                : Subject::firstOrCreate(
-                    [
-                        'institution_id' => $institution->id,
-                        'course_id' => $course->id,
-                        'name' => $subjectName,
-                    ],
-                    [
-                        'code' => $subjectCode,
-                        'teacher_name' => 'Cátedra SO y Redes',
-                    ]
-                );
-
-            // 4. Crear o buscar la Evaluación para "Primer Parcial (PP)"
-            $evaluation = Evaluation::firstOrCreate(
-                [
-                    'institution_id' => $institution->id,
-                    'subject_id' => $subject->id,
-                    'title' => 'Primer Parcial (PP)',
-                ],
-                [
-                    'description' => 'Evaluación Parcial 1 importada de planilla de cátedra',
-                    'weight_percentage' => 50,
-                    'date' => '2026-10-05',
-                ]
-            );
-
-            // 5. Procesar filas de alumnos, asistencias y notas
-            $studentsCreated = 0;
-            $studentsUpdated = 0;
-            $attendancesCount = 0;
-            $gradesCount = 0;
-            $processedStudents = [];
-
-            // Buscar la línea de encabezado de columnas (Nro, Legajo, Apellido y Nombres...)
+            // 2. Buscar la línea de encabezado de columnas (Legajo, Alumno, Nro, P1, PP...)
             $headerRowIndex = null;
             $columns = [];
 
             foreach ($lines as $idx => $line) {
                 $row = str_getcsv($line, ';');
-                if (isset($row[0], $row[2]) && (stripos($row[0], 'Nro') !== false || stripos($row[2], 'Apellido') !== false)) {
+                $cleanRow = array_map('trim', $row);
+
+                $hasLegajoOrNro = false;
+                $hasStudentName = false;
+
+                foreach ($cleanRow as $cell) {
+                    if (stripos($cell, 'Legajo') !== false || stripos($cell, 'Nro') !== false || stripos($cell, 'N°') !== false || stripos($cell, 'Nº') !== false) {
+                        $hasLegajoOrNro = true;
+                    }
+                    if (stripos($cell, 'Alumno') !== false || stripos($cell, 'Apellido') !== false || stripos($cell, 'Nombres') !== false) {
+                        $hasStudentName = true;
+                    }
+                }
+
+                if ($hasLegajoOrNro && $hasStudentName) {
                     $headerRowIndex = $idx;
-                    $columns = array_map('trim', $row);
+                    $columns = $cleanRow;
                     break;
                 }
             }
 
             if ($headerRowIndex === null) {
-                throw new \RuntimeException('No se pudo identificar la fila de encabezados (Nro; Legajo; Apellido y Nombres).');
+                throw new \RuntimeException('No se pudo identificar la fila de encabezados (Legajo/Nro; Alumno/Apellido y Nombres).');
             }
 
             // Identificar índices de columnas relevantes
-            $colNro = $this->findColumnIndex($columns, ['Nro', 'N°', 'Nº']);
-            $colLegajo = $this->findColumnIndex($columns, ['Legajo']);
-            $colNombre = $this->findColumnIndex($columns, ['Apellido y Nombres', 'Apellido', 'Alumno']);
+            $colNro = $this->findColumnIndex($columns, ['Nro', 'N°', 'Nº', 'Orden']);
+            $colLegajo = $this->findColumnIndex($columns, ['Legajo', 'Leg.']);
+            $colNombre = $this->findColumnIndex($columns, ['Apellido y Nombres', 'Alumno', 'Estudiante', 'Apellido']);
             $colInasist = $this->findColumnIndex($columns, ['Inasist']);
             $colAgo = $this->findColumnIndex($columns, ['ago', '10, 17,24,31']);
             $col07Sep = $this->findColumnIndex($columns, ['7-sept', '07-sept', '07/09', '7/09']);
@@ -136,7 +93,94 @@ class AttendanceSheetImportService
             $col21Sep = $this->findColumnIndex($columns, ['21-sept', '21/09']);
             $col28Sep = $this->findColumnIndex($columns, ['28-sept', '28/09']);
             $col05Oct = $this->findColumnIndex($columns, ['5-oct', '05-oct', '05/10', '5/10']);
-            $colPP = $this->findColumnIndex($columns, ['PP', 'Primer Parcial', 'Parcial 1']);
+            $colP1 = $this->findColumnIndex($columns, ['P1', 'PP', 'Primer Parcial', 'Parcial 1', 'Parcial I']);
+
+            // 3. Resolver Curso
+            if (! empty($metadata['comision'])) {
+                $defaultCourseName = "Comisión {$metadata['comision']} ({$metadata['anio']})";
+                $defaultSection = "Comisión {$metadata['comision']}";
+            } elseif (! empty($metadata['periodo'])) {
+                $defaultCourseName = "{$metadata['actividad_nombre']} - {$metadata['periodo']} {$metadata['anio']}";
+                $defaultSection = 'Única';
+            } else {
+                $defaultCourseName = "{$metadata['actividad_nombre']} ({$metadata['anio']})";
+                $defaultSection = 'Única';
+            }
+
+            if ($courseId) {
+                $course = Course::findOrFail($courseId);
+            } elseif ($subjectId) {
+                $foundSubject = Subject::findOrFail($subjectId);
+                $course = $foundSubject->course ?: Course::firstOrCreate(
+                    [
+                        'institution_id' => $institution->id,
+                        'name' => $defaultCourseName,
+                        'academic_year' => $metadata['anio'] ?? '2026',
+                    ],
+                    [
+                        'section' => $defaultSection,
+                    ]
+                );
+            } else {
+                $course = Course::firstOrCreate(
+                    [
+                        'institution_id' => $institution->id,
+                        'name' => $defaultCourseName,
+                        'academic_year' => $metadata['anio'] ?? '2026',
+                    ],
+                    [
+                        'section' => $defaultSection,
+                    ]
+                );
+            }
+
+            // 4. Resolver Materia
+            $subjectName = $metadata['actividad_nombre'] ?? 'Programación IV';
+            $subjectCode = $metadata['actividad_codigo'] ?? null;
+
+            if ($subjectId) {
+                $subject = Subject::findOrFail($subjectId);
+                if ($course && $subject->course_id !== $course->id) {
+                    $subject->update(['course_id' => $course->id]);
+                }
+            } else {
+                $subject = Subject::firstOrCreate(
+                    [
+                        'institution_id' => $institution->id,
+                        'course_id' => $course->id,
+                        'name' => $subjectName,
+                    ],
+                    [
+                        'code' => $subjectCode,
+                        'teacher_name' => "Cátedra {$subjectName}",
+                    ]
+                );
+            }
+
+            // 5. Crear o buscar la Evaluación para el Primer Parcial (P1 o PP)
+            $evaluationTitle = ($colP1 !== null && isset($columns[$colP1]) && stripos($columns[$colP1], 'P1') !== false)
+                ? 'Primer Parcial (P1)'
+                : 'Primer Parcial (PP)';
+
+            $evaluation = Evaluation::firstOrCreate(
+                [
+                    'institution_id' => $institution->id,
+                    'subject_id' => $subject->id,
+                    'title' => $evaluationTitle,
+                ],
+                [
+                    'description' => "Evaluación {$evaluationTitle} importada de planilla",
+                    'weight_percentage' => 50,
+                    'date' => '2026-10-05',
+                ]
+            );
+
+            // 6. Procesar filas de alumnos, asistencias y notas
+            $studentsCreated = 0;
+            $studentsUpdated = 0;
+            $attendancesCount = 0;
+            $gradesCount = 0;
+            $processedStudents = [];
 
             // Recorrer las filas de alumnos
             for ($i = $headerRowIndex + 1; $i < count($lines); $i++) {
@@ -146,24 +190,36 @@ class AttendanceSheetImportService
                 }
 
                 $row = str_getcsv($line, ';');
-                // Ignorar filas de pie de página como 'Datos', 'Tema:', 'Firma docente:'
-                if (isset($row[0]) && in_array(strtolower(trim($row[0])), ['datos', 'tema:', 'firma docente:', ''])) {
-                    if (empty($row[0]) && empty($row[1]) && empty($row[2])) {
-                        continue;
-                    }
+
+                // Si todas las celdas de la fila están vacías, ignorar
+                if (empty(array_filter($row, fn ($c) => trim($c) !== ''))) {
+                    continue;
                 }
 
-                $nro = isset($row[$colNro]) ? trim($row[$colNro]) : '';
-                $nombreCompleto = isset($row[$colNombre]) ? trim($row[$colNombre]) : '';
-                $legajo = isset($row[$colLegajo]) ? trim($row[$colLegajo]) : null;
-                $legajo = ($legajo === '' || $legajo === '0') ? null : $legajo;
+                // Ignorar filas de pie de página como 'Datos', 'Tema:', 'Firma docente:'
+                $firstCell = strtolower(trim($row[0] ?? ''));
+                if (in_array($firstCell, ['datos', 'tema:', 'firma docente:'])) {
+                    continue;
+                }
 
-                if (empty($nombreCompleto) || ! is_numeric($nro)) {
+                $nombreCompleto = ($colNombre !== null && isset($row[$colNombre])) ? trim($row[$colNombre]) : '';
+                $legajo = ($colLegajo !== null && isset($row[$colLegajo])) ? trim($row[$colLegajo]) : null;
+                $legajo = ($legajo === '' || $legajo === '0' || $legajo === '-') ? null : $legajo;
+                $nro = ($colNro !== null && isset($row[$colNro])) ? trim($row[$colNro]) : '';
+
+                if (empty($nombreCompleto) || (empty($legajo) && ! is_numeric($nro))) {
                     // No es una fila válida de estudiante
                     continue;
                 }
 
-                // Separar Apellido y Nombres (habitualmente separados por coma: 'ACOSTA, KARINA AILEN')
+                if (! is_numeric($nro)) {
+                    $nro = $legajo ?: (string) ($i - $headerRowIndex);
+                }
+
+                // Limpiar notas o marcas agregadas como " (*)"
+                $nombreCompleto = trim(preg_replace('/\s*\(\*\)\s*$/', '', $nombreCompleto));
+
+                // Separar Apellido y Nombres (habitualmente separados por coma: 'Aguirre, Sira Gretel')
                 [$lastName, $firstName] = $this->splitStudentName($nombreCompleto);
 
                 // Generar o asignar RUT / DNI único
@@ -214,22 +270,18 @@ class AttendanceSheetImportService
                     'name' => $student->full_name,
                 ];
 
-                // === ASISTENCIAS ===
-                // A) Clases de Agosto (10, 17, 24, 31 de agosto)
-                // En la planilla viene el acumulado asistido (de 0 a 4)
+                // === ASISTENCIAS (si existen en la planilla) ===
                 if ($colAgo !== null && isset($row[$colAgo]) && is_numeric(trim($row[$colAgo]))) {
                     $diasAsistidosAgo = min(4, max(0, (int) trim($row[$colAgo])));
                     $fechasAgosto = ['2026-08-10', '2026-08-17', '2026-08-24', '2026-08-31'];
 
                     foreach ($fechasAgosto as $k => $fechaAgo) {
-                        // Si el contador es mayor al índice, se computa presente
                         $statusAgo = ($k < $diasAsistidosAgo) ? 'present' : 'absent';
                         $this->recordAttendance($institution->id, $student->id, $course->id, $subject->id, $fechaAgo, $statusAgo, 'Asistencia Agosto');
                         $attendancesCount++;
                     }
                 }
 
-                // B) 07 de Septiembre
                 if ($col07Sep !== null && isset($row[$col07Sep])) {
                     $val = trim($row[$col07Sep]);
                     if ($val === '1' || $val === '0') {
@@ -238,7 +290,6 @@ class AttendanceSheetImportService
                     }
                 }
 
-                // C) 14 de Septiembre
                 if ($col14Sep !== null && isset($row[$col14Sep])) {
                     $val = trim($row[$col14Sep]);
                     if ($val === '1' || $val === '0') {
@@ -247,7 +298,6 @@ class AttendanceSheetImportService
                     }
                 }
 
-                // D) 21 de Septiembre (F = Feriado / Primavera)
                 if ($col21Sep !== null && isset($row[$col21Sep])) {
                     $val = strtoupper(trim($row[$col21Sep]));
                     if ($val === 'F') {
@@ -259,7 +309,6 @@ class AttendanceSheetImportService
                     }
                 }
 
-                // E) 28 de Septiembre
                 if ($col28Sep !== null && isset($row[$col28Sep])) {
                     $val = trim($row[$col28Sep]);
                     if ($val === '1' || $val === '0') {
@@ -268,7 +317,6 @@ class AttendanceSheetImportService
                     }
                 }
 
-                // F) 05 de Octubre
                 if ($col05Oct !== null && isset($row[$col05Oct])) {
                     $val = trim($row[$col05Oct]);
                     if ($val === '1' || $val === '0') {
@@ -277,14 +325,14 @@ class AttendanceSheetImportService
                     }
                 }
 
-                // === NOTA DEL PRIMER PARCIAL (PP) ===
-                if ($colPP !== null && isset($row[$colPP])) {
-                    $valPP = trim($row[$colPP]);
+                // === NOTA DEL PRIMER PARCIAL (P1 / PP) ===
+                if ($colP1 !== null && isset($row[$colP1])) {
+                    $valP1 = trim($row[$colP1]);
                     // Reemplazar coma decimal por punto (ej. 77,5 -> 77.5)
-                    $valPP = str_replace(',', '.', $valPP);
+                    $valP1 = str_replace(',', '.', $valP1);
 
-                    if (is_numeric($valPP)) {
-                        $score = (float) $valPP;
+                    if (is_numeric($valP1)) {
+                        $score = (float) $valP1;
                         Grade::updateOrCreate(
                             [
                                 'evaluation_id' => $evaluation->id,
@@ -292,12 +340,33 @@ class AttendanceSheetImportService
                             ],
                             [
                                 'score' => $score,
-                                'feedback' => 'Calificación Primer Parcial (PP)',
+                                'feedback' => "Calificación {$evaluationTitle}",
                             ]
                         );
                         $gradesCount++;
                     }
                 }
+            }
+
+            // Fechas de asistencias procesadas (solo si la planilla tenía columnas de asistencia)
+            $importedDates = [];
+            if ($colAgo !== null && $attendancesCount > 0) {
+                $importedDates = array_merge($importedDates, ['2026-08-10', '2026-08-17', '2026-08-24', '2026-08-31']);
+            }
+            if ($col07Sep !== null && $attendancesCount > 0) {
+                $importedDates[] = '2026-09-07';
+            }
+            if ($col14Sep !== null && $attendancesCount > 0) {
+                $importedDates[] = '2026-09-14';
+            }
+            if ($col21Sep !== null && $attendancesCount > 0) {
+                $importedDates[] = '2026-09-21 (Feriado)';
+            }
+            if ($col28Sep !== null && $attendancesCount > 0) {
+                $importedDates[] = '2026-09-28';
+            }
+            if ($col05Oct !== null && $attendancesCount > 0) {
+                $importedDates[] = '2026-10-05';
             }
 
             return [
@@ -311,17 +380,7 @@ class AttendanceSheetImportService
                 'students_total' => count($processedStudents),
                 'attendances_count' => $attendancesCount,
                 'grades_count' => $gradesCount,
-                'dates_imported' => [
-                    '2026-08-10',
-                    '2026-08-17',
-                    '2026-08-24',
-                    '2026-08-31',
-                    '2026-09-07',
-                    '2026-09-14',
-                    '2026-09-21 (Feriado)',
-                    '2026-09-28',
-                    '2026-10-05',
-                ],
+                'dates_imported' => $importedDates,
             ];
         });
     }
@@ -393,22 +452,51 @@ class AttendanceSheetImportService
         $meta = [
             'titulo' => '',
             'anio' => '2026',
-            'periodo' => '2do Cuatrimestre',
+            'periodo' => '',
+            'comision' => '',
             'ubicacion' => 'Rectorado',
             'modalidad' => 'Presencial',
-            'horario' => 'Lun 15:00 a 17:00',
-            'actividad_nombre' => 'SISTEMAS OPERATIVOS Y REDES',
-            'actividad_codigo' => '208',
+            'horario' => '',
+            'actividad_nombre' => 'Programación IV',
+            'actividad_codigo' => null,
         ];
 
-        foreach (array_slice($lines, 0, 7) as $line) {
+        foreach (array_slice($lines, 0, 10) as $line) {
             $cols = str_getcsv($line, ';');
 
             foreach ($cols as $cIdx => $val) {
                 $clean = trim($val);
+                if (empty($clean)) {
+                    continue;
+                }
+
                 if (stripos($clean, 'PLANILLA') !== false) {
                     $meta['titulo'] = $clean;
                 }
+
+                // Detectar "Alumnos cursando: Programación IV (Tec.Univ.Prog.)"
+                if (stripos($clean, 'Alumnos cursando:') !== false) {
+                    $meta['titulo'] = $clean;
+                    $subjectPart = trim(str_ireplace('Alumnos cursando:', '', $clean));
+                    if (preg_match('/^(.*?)\s*\((.*?)\)$/', $subjectPart, $m)) {
+                        $meta['actividad_nombre'] = trim($m[1]);
+                        $meta['actividad_codigo'] = trim($m[2]);
+                    } else {
+                        $meta['actividad_nombre'] = $subjectPart;
+                    }
+                }
+
+                // Detectar "Comision: 21 - 2026"
+                if (stripos($clean, 'Comision:') !== false || stripos($clean, 'Comisión:') !== false) {
+                    $comPart = trim(preg_replace('/^Comisi[oó]n:\s*/i', '', $clean));
+                    if (preg_match('/^(\w+)\s*-\s*(\d{4})$/', $comPart, $m)) {
+                        $meta['comision'] = trim($m[1]);
+                        $meta['anio'] = trim($m[2]);
+                    } elseif (preg_match('/^(\w+)/', $comPart, $m)) {
+                        $meta['comision'] = trim($m[1]);
+                    }
+                }
+
                 if (stripos($clean, 'Acad') !== false && isset($cols[$cIdx + 1])) {
                     $meta['anio'] = trim($cols[$cIdx + 1]) ?: $meta['anio'];
                 }
@@ -438,16 +526,30 @@ class AttendanceSheetImportService
      */
     protected function normalizeEncoding(string $str): string
     {
-        // Si detecta secuencia UTF-8 rota o caracteres comunes corruptos
+        // Detectar si no es UTF-8 (ej. Windows-1252 o ISO-8859-1 de Excel)
+        if (! mb_check_encoding($str, 'UTF-8')) {
+            $str = mb_convert_encoding($str, 'UTF-8', 'ISO-8859-1');
+        }
+
+        // Si detecta secuencia UTF-8 rota o caracteres comunes corruptos con el caracter de reemplazo
         $replacements = [
-            'Ao' => 'Año',
-            'Perodo' => 'Período',
-            'Ubicacin' => 'Ubicación',
-            'Terico-Prctica' => 'Teórico-Práctica',
-            'GARCA' => 'GARCÍA',
-            'GAVILN' => 'GAVILÁN',
-            'GASTN' => 'GASTÓN',
-            '' => 'í',
+            "A\u{FFFD}o" => 'Año',
+            "Per\u{FFFD}odo" => 'Período',
+            "Ubicaci\u{FFFD}n" => 'Ubicación',
+            "Te\u{FFFD}rico-Pr\u{FFFD}ctica" => 'Teórico-Práctica',
+            "GARC\u{FFFD}A" => 'GARCÍA',
+            "GAVIL\u{FFFD}N" => 'GAVILÁN',
+            "GAST\u{FFFD}N" => 'GASTÓN',
+            "Programaci\u{FFFD}n" => 'Programación',
+            "Mari\u{FFFD}n" => 'Marián',
+            "Jos\u{FFFD}" => 'José',
+            "Budi\u{FFFD}o" => 'Budiño',
+            "Nu\u{FFFD}ez" => 'Nuñez',
+            "Jes\u{FFFD}s" => 'Jesús',
+            "Anah\u{FFFD}" => 'Anahí',
+            "Mar\u{FFFD}a" => 'María',
+            "Mart\u{FFFD}n" => 'Martín',
+            "Comisi\u{FFFD}n" => 'Comisión',
         ];
 
         return str_replace(array_keys($replacements), array_values($replacements), $str);

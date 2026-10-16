@@ -7,6 +7,7 @@ use App\Models\Institution;
 use App\Models\Subject;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 
 class CourseController extends Controller
 {
@@ -40,7 +41,10 @@ class CourseController extends Controller
         }
 
         // Lista de docentes para asignar a materias
-        $teachers = User::where('role', 'teacher')->orWhereNull('role')->orderBy('name')->get();
+        $teachers = User::whereIn('role', ['teacher', 'coordinator', 'admin'])
+            ->orWhereNull('role')
+            ->orderBy('name')
+            ->get();
 
         return view('courses.index', compact('courses', 'institution', 'teachers', 'activeInstId'));
     }
@@ -107,23 +111,139 @@ class CourseController extends Controller
             'code' => 'nullable|string|max:50',
             'teacher_name' => 'nullable|string|max:150',
             'teacher_id' => 'nullable|exists:users,id',
+            'new_teacher_name' => 'nullable|string|max:255',
+            'new_teacher_email' => 'nullable|email|max:255',
+            'new_teacher_title' => 'nullable|string|max:255',
+        ], [
+            'name.required' => 'El nombre de la asignatura es obligatorio.',
+            'new_teacher_email.email' => 'Ingresa un correo electrónico válido para el nuevo docente.',
         ]);
 
-        $validated['institution_id'] = $activeInstId;
+        $institutionId = $course->institution_id ?: $activeInstId;
+        $validated['institution_id'] = $institutionId;
         $validated['course_id'] = $course->id;
 
-        if (! empty($validated['teacher_id'])) {
+        // Si se envió un nuevo docente para crear directamente en el formulario
+        if (! empty($validated['new_teacher_name']) && ! empty($validated['new_teacher_email'])) {
+            $request->validate([
+                'new_teacher_email' => 'unique:users,email',
+            ], [
+                'new_teacher_email.unique' => 'El correo del nuevo docente ya se encuentra registrado.',
+            ]);
+
+            $newTeacher = User::create([
+                'name' => $validated['new_teacher_name'],
+                'email' => $validated['new_teacher_email'],
+                'title' => ($validated['new_teacher_title'] ?? null) ?: 'Docente Titular',
+                'role' => 'teacher',
+                'password' => Hash::make('password123'),
+            ]);
+
+            if ($institutionId) {
+                $newTeacher->institutions()->syncWithoutDetaching([
+                    $institutionId => ['role' => 'teacher'],
+                ]);
+            }
+
+            $validated['teacher_id'] = $newTeacher->id;
+            $validated['teacher_name'] = $newTeacher->name;
+        } elseif (! empty($validated['teacher_id'])) {
             $assignedTeacher = User::find($validated['teacher_id']);
             if ($assignedTeacher) {
                 $validated['teacher_name'] = $assignedTeacher->name;
+                if ($institutionId) {
+                    $assignedTeacher->institutions()->syncWithoutDetaching([
+                        $institutionId => ['role' => 'teacher'],
+                    ]);
+                }
             }
         } else {
-            $validated['teacher_name'] = $validated['teacher_name'] ?: 'Docente Titular';
+            $validated['teacher_id'] = null;
+            $validated['teacher_name'] = ! empty($validated['teacher_name']) ? $validated['teacher_name'] : 'Docente Titular';
         }
 
-        $subject = Subject::create($validated);
+        $subject = Subject::create([
+            'institution_id' => $validated['institution_id'],
+            'course_id' => $validated['course_id'],
+            'name' => $validated['name'],
+            'code' => $validated['code'] ?? null,
+            'teacher_id' => $validated['teacher_id'],
+            'teacher_name' => $validated['teacher_name'],
+        ]);
 
         return redirect()->route('courses.index')->with('success', "Asignatura {$subject->name} agregada al curso {$course->name}.");
+    }
+
+    /**
+     * Actualiza la información de una asignatura/materia y su docente asignado.
+     */
+    public function updateSubject(Request $request, $id)
+    {
+        $activeInstId = session('active_institution_id', Institution::first()?->id);
+        $subject = Subject::findOrFail($id);
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:150',
+            'code' => 'nullable|string|max:50',
+            'teacher_id' => 'nullable|exists:users,id',
+            'teacher_name' => 'nullable|string|max:150',
+            'new_teacher_name' => 'nullable|string|max:255',
+            'new_teacher_email' => 'nullable|email|max:255',
+            'new_teacher_title' => 'nullable|string|max:255',
+        ], [
+            'name.required' => 'El nombre de la asignatura es obligatorio.',
+            'new_teacher_email.email' => 'Ingresa un correo electrónico válido para el nuevo docente.',
+        ]);
+
+        $institutionId = $subject->institution_id ?: $activeInstId;
+
+        // Si se envió un nuevo docente para crear directamente en el formulario
+        if (! empty($validated['new_teacher_name']) && ! empty($validated['new_teacher_email'])) {
+            $request->validate([
+                'new_teacher_email' => 'unique:users,email',
+            ], [
+                'new_teacher_email.unique' => 'El correo del nuevo docente ya se encuentra registrado en el sistema.',
+            ]);
+
+            $newTeacher = User::create([
+                'name' => $validated['new_teacher_name'],
+                'email' => $validated['new_teacher_email'],
+                'title' => ($validated['new_teacher_title'] ?? null) ?: 'Docente Titular',
+                'role' => 'teacher',
+                'password' => Hash::make('password123'),
+            ]);
+
+            if ($institutionId) {
+                $newTeacher->institutions()->syncWithoutDetaching([
+                    $institutionId => ['role' => 'teacher'],
+                ]);
+            }
+
+            $validated['teacher_id'] = $newTeacher->id;
+            $validated['teacher_name'] = $newTeacher->name;
+        } elseif (! empty($validated['teacher_id'])) {
+            $assignedTeacher = User::find($validated['teacher_id']);
+            if ($assignedTeacher) {
+                $validated['teacher_name'] = $assignedTeacher->name;
+                if ($institutionId) {
+                    $assignedTeacher->institutions()->syncWithoutDetaching([
+                        $institutionId => ['role' => 'teacher'],
+                    ]);
+                }
+            }
+        } else {
+            $validated['teacher_id'] = null;
+            $validated['teacher_name'] = ! empty($validated['teacher_name']) ? $validated['teacher_name'] : 'Docente Titular';
+        }
+
+        $subject->update([
+            'name' => $validated['name'],
+            'code' => $validated['code'] ?? null,
+            'teacher_id' => $validated['teacher_id'],
+            'teacher_name' => $validated['teacher_name'],
+        ]);
+
+        return redirect()->route('courses.index')->with('success', "Asignatura {$subject->name} actualizada exitosamente.");
     }
 
     /**

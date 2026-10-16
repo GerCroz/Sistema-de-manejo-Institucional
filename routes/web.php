@@ -57,13 +57,15 @@ Route::middleware('auth')->group(function () {
         });
 
         // Directorio y Administración de Docentes
+        Route::post('teachers/quick', [TeacherController::class, 'quickStore'])->name('teachers.quick');
         Route::resource('teachers', TeacherController::class)->except(['create', 'show', 'edit']);
 
-        // Creación y eliminación estructural de cursos y materias
+        // Creación, edición y eliminación estructural de cursos y materias
         Route::post('courses', [CourseController::class, 'store'])->name('courses.store');
         Route::put('courses/{id}', [CourseController::class, 'update'])->name('courses.update');
         Route::delete('courses/{id}', [CourseController::class, 'destroy'])->name('courses.destroy');
         Route::post('courses/{course}/subjects', [CourseController::class, 'storeSubject'])->name('courses.subjects.store');
+        Route::put('subjects/{id}', [CourseController::class, 'updateSubject'])->name('subjects.update');
         Route::delete('subjects/{id}', [CourseController::class, 'destroySubject'])->name('subjects.destroy');
     });
 
